@@ -263,7 +263,7 @@ else:
         if api_key:
             with st.spinner("Gemini 教練正在調閱文獻並聽取訊息中..."):
                 try:
-                    # 使用穩定支援量產與多模態的 Pro 模型
+                    # 使用穩定支援多模態的 Pro 1.5 級別大腦網址
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={api_key}"
                     headers = {"Content-Type": "application/json"}
                     
@@ -296,4 +296,9 @@ else:
                     ai_reply = f"❌ 串接失敗。錯誤訊息: {str(e)}"
         else:
             if is_voice:
-                ai_reply = f"💡 **【系統 Demo 模式 - 語音辨識成功】**\n偵測到語音輸入！真實模式下
+                ai_reply = "💡 **【系統 Demo 模式 - 語音辨識成功】**\n偵測到語音輸入！真實模式下，Gemini 將直接解讀音訊。"
+            else:
+                ai_reply = "💡 **【系統 Demo 模式提示】**\n目前為純展示狀態。System Prompt 已自動封裝您的生理與作息數據。"
+
+        st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+        st.rerun()
