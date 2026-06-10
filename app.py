@@ -5,7 +5,7 @@ import requests
 import urllib3
 import base64
 import PyPDF2
-import sqlite3  # 🌟 導入 Python 內建資料庫套件
+import sqlite3
 from datetime import datetime
 
 # 強制關閉 SSL 不安全警告
@@ -78,9 +78,14 @@ def load_data_from_db():
         st.session_state.tests_submitted = bool(profile[6])
         st.session_state.profile_saved = True
     else:
+        # ⚠️ 修復點：確保新帳號或空資料庫時，所有變數都有預設值
         st.session_state.cs = 4.0
         st.session_state.d_prime = 200.0
         st.session_state.available_slots = []
+        st.session_state.tests_submitted = False
+        st.session_state.profile_saved = False
+        st.session_state.name = "楊云瑢"
+        st.session_state.goal_str = ""
         
     # 讀取訓練日誌
     cursor.execute("SELECT date, type, distance, duration, rpe, srpe, details FROM training_logs ORDER BY date ASC")
@@ -154,22 +159,22 @@ with st.sidebar:
         st.markdown(f"**🎯 目標賽事**：{st.session_state.get('goal_str', '')}")
         
         with st.expander("📅 檢視我的可訓練時段"):
-            if st.session_state.available_slots:
+            if st.session_state.get('available_slots'):
                 st.write(", ".join(st.session_state.available_slots))
             else:
                 st.info("未勾選特定時段")
                 
         st.markdown("---")
         st.subheader("🧬 生理模型基準線")
-        if st.session_state.tests_submitted:
-            st.metric(label="臨界速度 Critical Speed (CS)", value=f"{st.session_state.cs:.2f} m/s", delta=f"{1000/st.session_state.cs/60:.2f} min/km")
-            st.metric(label="無氧儲備距離 (D')", value=f"{st.session_state.d_prime:.0f} m")
+        if st.session_state.get('tests_submitted', False):
+            st.metric(label="臨界速度 Critical Speed (CS)", value=f"{st.session_state.get('cs', 4.0):.2f} m/s", delta=f"{1000/st.session_state.get('cs', 4.0)/60:.2f} min/km")
+            st.metric(label="無氧儲備距離 (D')", value=f"{st.session_state.get('d_prime', 200.0):.0f} m")
         else:
             st.warning("請在右側工作台執行基準測驗解算")
             
         st.markdown("---")
         st.subheader("📈 疲勞負荷監控")
-        srpe_list = [log["srpe"] for log in st.session_state.training_logs]
+        srpe_list = [log["srpe"] for log in st.session_state.get('training_logs', [])]
         if srpe_list:
             acute_load = sum(srpe_list[-7:])
             chronic_load = np.mean(srpe_list) * 7 if len(srpe_list) > 0 else 1.0
@@ -179,7 +184,6 @@ with st.sidebar:
             elif acwl > 1.5: st.error("🚨 進入過度訓練紅區")
             else: st.info("🟡 處於恢復或減量期")
             
-        # 🌟 新增功能：重設按鈕（方便專題展示時清空重來）
         if st.button("🗑️ 刪除所有數據並重開帳號"):
             if os.path.exists(DB_FILE):
                 os.remove(DB_FILE)
@@ -226,7 +230,6 @@ if not st.session_state.get('profile_saved', False):
             slots_str = ",".join(selected_slots)
             goal_str = f"{goal_type} {goal_hour:02d}:{goal_minute:02d}:00"
             
-            # 🌟 寫入資料庫永久儲存
             conn = sqlite3.connect(DB_FILE)
             cursor = conn.cursor()
             cursor.execute("INSERT INTO profile (name, age, goal_str, available_slots, cs, d_prime, tests_submitted) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -239,7 +242,6 @@ if not st.session_state.get('profile_saved', False):
             st.session_state.available_slots = selected_slots
             st.session_state.profile_saved = True
             
-            # 儲存第一條系統歡迎訊息
             welcome_text = f"你好 {name}！教練已成功上線。目標賽事：**{goal_str}**。\n\n所有作息數據已成功寫入永久資料庫。隨時重新整理網頁，您的進度都不會遺失！接下來請展開下方面板更新您的基準測驗數據。"
             conn = sqlite3.connect(DB_FILE)
             cursor = conn.cursor()
@@ -256,7 +258,7 @@ else:
     
     col_test, col_daily = st.columns(2)
     with col_test:
-        with st.expander("📋 填寫/更新 4 項基準測驗成績", expanded=not st.session_state.tests_submitted):
+        with st.expander("📋 填寫/更新 4 項基準測驗成績", expanded=not st.session_state.get('tests_submitted', False)):
             c1, c2 = st.columns(2)
             with c1:
                 m800 = st.number_input("800m (分)", value=2); s800 = st.number_input("800m (秒)", value=28)
@@ -269,7 +271,6 @@ else:
                 distances = np.array([800, 1600, 2400, 3600])
                 slope, intercept = np.polyfit(times, distances, 1)
                 
-                # 🌟 更新資料庫中的 生理模型參數
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
                 cursor.execute("UPDATE profile SET cs = ?, d_prime = ?, tests_submitted = 1 WHERE id = (SELECT max(id) FROM profile)", (slope, intercept))
@@ -286,7 +287,7 @@ else:
                 st.rerun()
 
     with col_daily:
-        with st.expander("🏃‍♂️ 填寫今日訓練回報 (精細日誌功能)", expanded=st.session_state.tests_submitted):
+        with st.expander("🏃‍♂️ 填寫今日訓練回報 (精細日誌功能)", expanded=st.session_state.get('tests_submitted', False)):
             train_date = st.date_input("訓練日期")
             train_type = st.selectbox("課表類型", ["輕鬆恢復跑 (Zone 1)", "有氧耐力跑 (Zone 2)", "節奏/門檻跑 (Zone 3)", "無氧間歇跑 (Zone 4)", "其他/交叉訓練"])
             
@@ -301,13 +302,13 @@ else:
                 avg_pace_sec = (duration_min * 60) / distance_km
                 avg_pace_str = f"{int(avg_pace_sec // 60)}:{int(avg_pace_sec % 60):02d} /km"
                 avg_speed_ms = (distance_km * 1000) / (duration_min * 60)
-                intensity_pct = (avg_speed_ms / st.session_state.cs) * 100 if st.session_state.cs > 0 else 0.0
+                current_cs = st.session_state.get('cs', 4.0)
+                intensity_pct = (avg_speed_ms / current_cs) * 100 if current_cs > 0 else 0.0
                 st.info(f"⚡ 系統試算：平均配速 **{avg_pace_str}** (約為臨界速度 CS 的 **{intensity_pct:.1f}%**)")
 
             if st.button("📝 送出今日精細日誌"):
                 srpe_val = duration_min * rpe
                 
-                # 🌟 將今日回報寫入資料庫日誌表
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
                 cursor.execute("INSERT INTO training_logs (date, type, distance, duration, rpe, srpe, details) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -333,7 +334,7 @@ else:
         audio_file = st.audio_input("錄製您的訓練回報或提問")
 
     # 顯示對話歷史
-    for msg in st.session_state.messages:
+    for msg in st.session_state.get('messages', []):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
@@ -355,7 +356,6 @@ else:
         audio_mime = audio_file.type
 
     if active_prompt:
-        # 🌟 將使用者的輸入存進資料庫
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("INSERT INTO chat_messages (role, content, timestamp) VALUES (?, ?, ?)", ("user", active_prompt, str(datetime.now())))
@@ -364,19 +364,18 @@ else:
         
         st.session_state.messages.append({"role": "user", "content": active_prompt})
         
-        # 建立結構化 System Prompt 記憶體
         history_summary = ""
-        for log in st.session_state.training_logs[-3:]:
+        for log in st.session_state.get('training_logs', [])[-3:]:
             history_summary += f"- {log.get('date')}: {log.get('type')}, {log.get('distance')}km, {log.get('duration')}min, RPE {log.get('rpe')}\n"
 
         system_instruction = f"{agent_personality}\n\n" \
                              f"【實證運動科學文獻知識庫如下】\n{knowledge_base_content}\n\n" \
                              f"【當前選手真實生理與作息數據】\n" \
-                             f"- 選手姓名: {st.session_state.name}\n" \
-                             f"- 目標: {st.session_state.goal_str}\n" \
-                             f"- 臨界速度 (CS): {st.session_state.cs:.2f} m/s\n" \
-                             f"- 無氧儲備距離 (D'): {st.session_state.d_prime:.0f} 米\n" \
-                             f"- 選手可訓練時段: {', '.join(st.session_state.available_slots)}\n" \
+                             f"- 選手姓名: {st.session_state.get('name', '楊云瑢')}\n" \
+                             f"- 目標: {st.session_state.get('goal_str', '')}\n" \
+                             f"- 臨界速度 (CS): {st.session_state.get('cs', 4.0):.2f} m/s\n" \
+                             f"- 無氧儲備距離 (D'): {st.session_state.get('d_prime', 200.0):.0f} 米\n" \
+                             f"- 選手可訓練時段: {', '.join(st.session_state.get('available_slots', []))}\n" \
                              f"- 最近三筆訓練歷史紀錄:\n{history_summary}\n\n" \
                              f"請依據上述設定、生理數據、歷史紀錄與作息空檔給予專業回覆。在安排微週期課表時，絕對不能把課表塞在選手沒有勾選的時間段。請務必使用繁體中文。"
 
@@ -419,7 +418,6 @@ else:
             else:
                 ai_reply = "💡 **【系統 Demo 模式提示】**\n目前為純展示狀態。System Prompt 已自動封裝您的生理與作息數據。"
 
-        # 🌟 將 AI 的回答也存進資料庫
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         cursor.execute("INSERT INTO chat_messages (role, content, timestamp) VALUES (?, ?, ?)", ("assistant", ai_reply, str(datetime.now())))
