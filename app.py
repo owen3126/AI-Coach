@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import numpy as np
+import pandas as pd  # 🌟 導入強大的數據分析套件
 import requests
 import urllib3
 import base64
@@ -19,10 +20,8 @@ st.set_page_config(page_title="AI 語音/文字訓練輔助平台", layout="wide
 DB_FILE = "coach_data.db"
 
 def init_db():
-    """初始化資料庫表單，確保所有欄位能永久儲存"""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # 1. 選手基本資料與生理指標表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS profile (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +34,6 @@ def init_db():
             tests_submitted INTEGER DEFAULT 0
         )
     ''')
-    # 2. 精細化訓練日誌表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS training_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +46,6 @@ def init_db():
             details TEXT
         )
     ''')
-    # 3. 聊天紀錄歷史表
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,11 +58,9 @@ def init_db():
     conn.close()
 
 def load_data_from_db():
-    """從資料庫讀取歷史資料並同步到 Streamlit 記憶體中"""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # 讀取個人資料
     cursor.execute("SELECT name, age, goal_str, available_slots, cs, d_prime, tests_submitted FROM profile ORDER BY id DESC LIMIT 1")
     profile = cursor.fetchone()
     if profile:
@@ -78,7 +73,6 @@ def load_data_from_db():
         st.session_state.tests_submitted = bool(profile[6])
         st.session_state.profile_saved = True
     else:
-        # ⚠️ 修復點：確保新帳號或空資料庫時，所有變數都有預設值
         st.session_state.cs = 4.0
         st.session_state.d_prime = 200.0
         st.session_state.available_slots = []
@@ -87,7 +81,6 @@ def load_data_from_db():
         st.session_state.name = "楊云瑢"
         st.session_state.goal_str = ""
         
-    # 讀取訓練日誌
     cursor.execute("SELECT date, type, distance, duration, rpe, srpe, details FROM training_logs ORDER BY date ASC")
     logs = cursor.fetchall()
     st.session_state.training_logs = []
@@ -97,7 +90,6 @@ def load_data_from_db():
             "duration": log[3], "rpe": log[4], "srpe": log[5], "details": log[6]
         })
         
-    # 讀取對話歷史
     cursor.execute("SELECT role, content FROM chat_messages ORDER BY id ASC")
     messages = cursor.fetchall()
     st.session_state.messages = []
@@ -106,7 +98,6 @@ def load_data_from_db():
         
     conn.close()
 
-# 執行資料庫啟動與讀取
 init_db()
 if 'db_loaded' not in st.session_state:
     load_data_from_db()
@@ -287,7 +278,7 @@ else:
                 st.rerun()
 
     with col_daily:
-        with st.expander("🏃‍♂️ 填寫今日訓練回報 (精細日誌功能)", expanded=st.session_state.get('tests_submitted', False)):
+        with st.expander("🏃‍♂️ 填寫今日訓練回報", expanded=st.session_state.get('tests_submitted', False)):
             train_date = st.date_input("訓練日期")
             train_type = st.selectbox("課表類型", ["輕鬆恢復跑 (Zone 1)", "有氧耐力跑 (Zone 2)", "節奏/門檻跑 (Zone 3)", "無氧間歇跑 (Zone 4)", "其他/交叉訓練"])
             
@@ -325,6 +316,46 @@ else:
                 })
                 st.session_state.messages.append({"role": "assistant", "content": log_notice})
                 st.rerun()
+
+    # 🌟 新增：Garmin Connect 風格歷史數據儀表板
+    with st.expander("📊 歷史訓練圖表與完整紀錄 (Garmin Connect 視角)", expanded=False):
+        if st.session_state.get('training_logs'):
+            # 將日誌轉換為 Pandas DataFrame
+            df = pd.DataFrame(st.session_state.training_logs)
+            df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
+            df = df.sort_values('date')
+
+            # 頂部快速統計摘要
+            st.markdown("### 🏆 週期訓練總覽")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("累積總跑量", f"{df['distance'].sum():.1f} km")
+            c2.metric("累積訓練負荷", f"{df['srpe'].sum()} sRPE")
+            c3.metric("平均自覺疲勞", f"{df['rpe'].mean():.1f} / 10")
+            
+            st.markdown("---")
+            
+            # 視覺化圖表區塊
+            col_chart1, col_chart2 = st.columns(2)
+            with col_chart1:
+                st.markdown("#### 📈 訓練負荷 (sRPE) 趨勢")
+                st.bar_chart(df.set_index("date")["srpe"], color="#ff4b4b")
+                
+            with col_chart2:
+                st.markdown("#### 🏃‍♂️ 跑量 (公里) 趨勢")
+                st.line_chart(df.set_index("date")["distance"], color="#0068c9")
+            
+            st.markdown("---")
+            
+            # 完整明細資料表
+            st.markdown("#### 📋 完整訓練明細紀錄")
+            # 重新命名欄位讓介面更友善
+            display_df = df.rename(columns={
+                "date": "日期", "type": "課表類型", "distance": "距離(km)",
+                "duration": "時間(分)", "rpe": "RPE", "srpe": "訓練負荷(sRPE)", "details": "備註細節"
+            })
+            st.dataframe(display_df, use_container_width=True)
+        else:
+            st.info("目前還沒有訓練紀錄喔！趕快去上方填寫今日訓練，圖表就會自動生成。")
 
     st.markdown("---")
     
