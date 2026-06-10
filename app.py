@@ -4,8 +4,9 @@ import numpy as np
 import requests
 import urllib3
 import base64
+import PyPDF2  # 載入 PDF 閱讀套件
 
-# 強制關閉 SSL 不安全警告 (確保穿透防火牆)
+# 強制關閉 SSL 不安全警告 (確保穿透學校/公司防火牆)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 頁面基本設定
@@ -24,14 +25,29 @@ try:
 except FileNotFoundError:
     agent_personality = "你是一位頂尖的運動科學跑步教練，名字叫科學分析師。"
 
-# 2. 自動讀取 papers/ 內所有的文獻內容
+# 2. 自動讀取 papers/ 內所有的文獻內容 (支援 txt, md, pdf)
 knowledge_base_content = ""
-paper_files = [f for f in os.listdir("papers") if f.endswith('.txt') or f.endswith('.md')]
+paper_files = [f for f in os.listdir("papers") if f.endswith(('.txt', '.md', '.pdf'))]
+
 for file_name in paper_files:
+    file_path = os.path.join("papers", file_name)
     try:
-        with open(os.path.join("papers", file_name), "r", encoding="utf-8") as f:
-            knowledge_base_content += f"\n\n【文獻檔案：{file_name}】\n" + f.read()
+        if file_name.lower().endswith('.pdf'):
+            # PDF 檔案的專屬萃取邏輯
+            with open(file_path, "rb") as f:
+                reader = PyPDF2.PdfReader(f)
+                pdf_text = ""
+                for page in reader.pages:
+                    extracted = page.extract_text()
+                    if extracted:
+                        pdf_text += extracted + "\n"
+                knowledge_base_content += f"\n\n【PDF文獻檔案：{file_name}】\n{pdf_text}"
+        else:
+            # 一般文字檔的讀取邏輯
+            with open(file_path, "r", encoding="utf-8") as f:
+                knowledge_base_content += f"\n\n【文獻檔案：{file_name}】\n" + f.read()
     except Exception:
+        # 遇到加密或損毀檔案自動跳過
         pass
 
 # 初始化 Session State 狀態記憶
@@ -96,15 +112,8 @@ with st.sidebar:
             else: st.info("🟡 處於恢復或減量期")
 
     st.markdown("---")
-    st.subheader("📚 運動科學文獻庫 (papers/)")
-    new_paper_name = st.text_input("新增文獻檔名 (例如: CP_theory.txt)")
-    new_paper_content = st.text_area("文獻內容 (貼上 Paper 摘要或核心理論)")
-    if st.button("💾 寫入文獻庫"):
-        if new_paper_name and new_paper_content:
-            with open(os.path.join("papers", new_paper_name), "w", encoding="utf-8") as f:
-                f.write(new_paper_content)
-            st.success(f"成功存入 papers/{new_paper_name}！")
-            st.rerun()
+    st.subheader("📚 運動科學文獻庫")
+    st.info("請將運動科學文獻的 .txt 或 .pdf 檔案直接拖曳進專案的 papers/ 資料夾中，系統將於背景自動判讀。")
 
 # ---------------------------------------------------------
 # 主畫面邏輯
@@ -254,7 +263,8 @@ else:
         if api_key:
             with st.spinner("Gemini 教練正在調閱文獻並聽取訊息中..."):
                 try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
+                    # 使用穩定支援量產與多模態的 Pro 模型
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={api_key}"
                     headers = {"Content-Type": "application/json"}
                     
                     parts_list = []
@@ -281,14 +291,9 @@ else:
                     if "candidates" in res_json:
                         ai_reply = res_json["candidates"][0]["content"]["parts"][0]["text"]
                     else:
-                        ai_reply = f"❌ API 回應異常，請確認密鑰。詳細資訊：{res_json}"
+                        ai_reply = f"❌ API 回應異常，伺服器可能過載或密鑰錯誤。詳細資訊：{res_json}"
                 except Exception as e:
                     ai_reply = f"❌ 串接失敗。錯誤訊息: {str(e)}"
         else:
             if is_voice:
-                ai_reply = f"💡 **【系統 Demo 模式 - 語音辨識成功】**\n偵測到語音輸入！真實模式下，Gemini 將直接解讀音訊。"
-            else:
-                ai_reply = f"💡 **【系統 Demo 模式提示】**\n目前為純展示狀態。System Prompt 已自動封裝您的生理與作息數據。"
-
-        st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-        st.rerun()
+                ai_reply = f"💡 **【系統 Demo 模式 - 語音辨識成功】**\n偵測到語音輸入！真實模式下

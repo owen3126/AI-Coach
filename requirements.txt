@@ -1,0 +1,5 @@
+streamlit
+numpy
+requests
+urllib3
+PyPDF2
