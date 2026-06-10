@@ -263,8 +263,8 @@ else:
         if api_key:
             with st.spinner("Gemini 教練正在調閱文獻並聽取訊息中..."):
                 try:
-                    # 使用穩定支援多模態的 Pro 1.5 級別大腦網址
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={api_key}"
+                    # ✅ 關鍵更新：直接綁定 Gemini 3.5 Flash 頂級模型
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
                     headers = {"Content-Type": "application/json"}
                     
                     parts_list = []
@@ -291,7 +291,7 @@ else:
                     if "candidates" in res_json:
                         ai_reply = res_json["candidates"][0]["content"]["parts"][0]["text"]
                     else:
-                        ai_reply = f"❌ API 回應異常，伺服器可能過載或密鑰錯誤。詳細資訊：{res_json}"
+                        ai_reply = f"❌ API 回應異常，請確認密鑰或伺服器狀態。詳細資訊：{res_json}"
                 except Exception as e:
                     ai_reply = f"❌ 串接失敗。錯誤訊息: {str(e)}"
         else:
