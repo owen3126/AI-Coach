@@ -23,7 +23,7 @@ st.set_page_config(page_title="LutzAI 運動科學平台", layout="wide", page_i
 st.markdown("""
 <style>
 /* 匯入 Notion 常用字體 */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap)');
 
 /* 全域字體與強制亮色背景極簡化 */
 .stApp {
@@ -387,29 +387,75 @@ elif page == "💬 AI 對話教練":
         weekday_map = {0:"一", 1:"二", 2:"三", 3:"四", 4:"五", 5:"六", 6:"日"}
         current_weekday = f"星期{weekday_map[now.weekday()]}"
 
-        sys_inst = f"""{agent_personality}
+        # 🌟 安全的單行字串拼接 (絕對不會發生引號斷行錯誤)
+        sys_inst = (
+            f"{agent_personality}\n\n"
+            f"【現實時間認知】\n"
+            f"今天是真實世界的：{current_date_str} ({current_weekday})\n"
+            f"- 當選手要求「安排本週課表」時，請務必從「{current_date_str} 開始，排到本週日為止」。\n"
+            f"- 當選手在週日要求「安排下週課表」時，再給完整的下週一到下週日課表。\n"
+            f"- 若選手提出回饋修改課表，請從「{current_date_str} 起」向後調整未來的課表。\n\n"
+            f"【生理與目標數據】\n"
+            f"CS: {st.session_state.cs:.2f} m/s, D': {st.session_state.d_prime:.0f}m\n"
+            f"可訓練時段: {','.join(st.session_state.available_slots)}\n"
+            f"目標賽事日: {st.session_state.get('race_date')}\n"
+            f"近期訓練歷史:\n{history}\n\n"
+            f"【專屬偏好設定】\n"
+            f"- 課表呈現請勿使用粗體字。\n"
+            f"- 針對「輕鬆恢復跑 (Zone 1)」等恢復性質訓練，請務必提供具體的「配速區間 (Pace Range)」。\n\n"
+            f"【重要操作指令：兩階段確認法】\n"
+            f"1. 當你提出新的課表或調整草案時，【必須只使用一般文字或表格】，並詢問選手：「確認沒問題的話，我就幫你同步到系統裡囉？」\n"
+            f"2. 【極度重要】：絕不能在第一次提案就輸出 JSON！\n"
+            f"3. 只有當選手回答「好」、「OK」、「沒問題」、「確認」這類同意詞時，你才可以在回覆的最下方，輸出 JSON 結構數據。\n"
+            f"4. 輸出的 JSON 中，只要日期相同的項目，系統會自動覆蓋(Update)掉舊的課表。\n\n"
+            f"JSON 格式範例 (必須被 ```json 包含)：\n"
+            f"```json\n"
+            f"[\n"
+            f"  {{\"date\": \"2026-06-15\", \"type\": \"輕鬆恢復跑 (Zone 1)\", \"distance\": 6.0, \"duration\": 40, \"rpe\": 3, \"details\": \"心率維持在130以下\"}}\n"
+            f"]\n"
+            f"
+```\n"
+            f"注意：type 必須嚴格等於這五種之一：[輕鬆恢復跑 (Zone 1), 有氧耐力跑 (Zone 2), 節奏/門檻跑 (Zone 3), 無氧間歇跑 (Zone 4), 其他/交叉訓練]。"
+        )
 
-【現實時間認知】
-今天是真實世界的：{current_date_str} ({current_weekday})
-- 當選手要求「安排本週課表」時，請務必從「{current_date_str} 開始，排到本週日為止」。
-- 當選手在週日要求「安排下週課表」時，再給完整的下週一到下週日課表。
-- 若選手提出回饋修改課表，請從「{current_date_str} 起」向後調整未來的課表。
+        if api_key:
+            with st.spinner("AI is thinking..."):
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
+                    parts = [{"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}}, {"text": "這是語音，請聽取並指導。"}] if audio_file else [{"text": active_prompt}]
+                    payload = {"systemInstruction": {"parts": [{"text": sys_inst}]}, "contents": [{"role": "user", "parts": parts}]}
+                    res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, verify=False).json()
+                    
+                    if "candidates" in res:
+                        ai_reply = res["candidates"][0]["content"]["parts"][0]["text"]
+                        
+                        json_match = re.search(r'```json\n(.*?)\n```', ai_reply, re.DOTALL)
+                        if json_match:
+                            try:
+                                plan_data = json.loads(json_match.group(1))
+                                conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
+                                for day_plan in plan_data:
+                                    cursor.execute("DELETE FROM training_plan WHERE date = ?", (day_plan['date'],))
+                                    cursor.execute("INSERT INTO training_plan (date, type, distance, duration, rpe, details) VALUES (?, ?, ?, ?, ?, ?)", 
+                                        (day_plan['date'], day_plan['type'], float(day_plan['distance']), int(day_plan['duration']), int(day_plan['rpe']), day_plan.get('details', '')))
+                                conn.commit()
+                                
+                                cursor.execute("SELECT date, type, distance, duration, rpe, details FROM training_plan ORDER BY date ASC")
+                                st.session_state.training_plan = [{"date": p[0], "type": p[1], "distance": p[2], "duration": p[3], "rpe": p[4], "details": p[5]} for p in cursor.fetchall()]
+                                conn.close()
+                                
+                                ai_reply += "\n\n✅ **[系統提示：收到確認指令！最新課表已覆寫並同步至「訓練儀表板」。]**"
+                            except Exception as e:
+                                ai_reply += f"\n\n⚠️ **[系統提示：課表同步失敗]** {e}"
+                                
+                    else:
+                        ai_reply = f"❌ API Error: {res}"
+                except Exception as e: ai_reply = f"❌ Connection Failed: {e}"
+        else:
+            ai_reply = "💡 **[Demo Mode]** 真實模式下，AI 回覆後系統會自動進行資料庫寫入。"
 
-【生理與目標數據】
-CS: {st.session_state.cs:.2f} m/s, D': {st.session_state.d_prime:.0f}m
-可訓練時段: {','.join(st.session_state.available_slots)}
-目標賽事日: {st.session_state.get('race_date')}
-近期訓練歷史:
-{history}
-
-【重要操作指令：兩階段確認法】
-1. 當你提出新的課表或調整草案時，【必須只使用一般文字或表格】，並詢問選手：「確認沒問題的話，我就幫你同步到系統裡囉？」
-2. 【極度重要】：絕不能在第一次提案就輸出 JSON！
-3. 只有當選手回答「好」、「OK」、「沒問題」、「確認」這類同意詞時，你才可以在回覆的最下方，輸出 JSON 結構數據。
-4. 輸出的 JSON 中，只要日期相同的項目，系統會自動覆蓋(Update)掉舊的課表。
-
-JSON 格式範例 (必須被 ```json 包含)：
-```json
-[
-  {{"date": "2026-06-15", "type": "輕鬆恢復跑 (Zone 1)", "distance": 6.0, "duration": 40, "rpe": 3, "details": "心率維持在130以下"}}
-]
+        conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
+        cursor.execute("INSERT INTO chat_messages (role, content, timestamp) VALUES (?, ?, ?)", ("assistant", ai_reply, str(datetime.now())))
+        conn.commit(); conn.close()
+        st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+        st.rerun()
