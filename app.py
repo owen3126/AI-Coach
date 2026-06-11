@@ -147,7 +147,6 @@ if page == "🏠 首頁 (帳號設定)":
 elif page == "📈 訓練儀表板":
     st.title("📈 週期訓練儀表板")
     
-    # 🌟 自動推算大週期 (Macrocycle)
     if st.session_state.get('race_date'):
         days_to_race = (datetime.strptime(st.session_state.race_date, '%Y-%m-%d').date() - datetime.today().date()).days
         if days_to_race < 0: macrocycle = "🏖️ 季後過渡期 (Transition)"
@@ -158,17 +157,14 @@ elif page == "📈 訓練儀表板":
         
         st.info(f"**🎯 距離目標賽事 ({st.session_state.race_date}) 還有 {days_to_race} 天！** 目前處於：**{macrocycle}**")
 
-    # 🌟 AI 預定課表 vs 實際回報區塊
     col_plan, col_actual = st.columns(2)
     
     with col_plan:
         st.markdown("### 🤖 教練預定課表 (自動同步)")
         if st.session_state.get('training_plan'):
             df_plan = pd.DataFrame(st.session_state.training_plan)
-            # 將資料表美化
-            st.dataframe(df_plan.rename(columns={"date":"日期", "type":"課表類型", "distance":"距離(km)", "duration":"時間(分)", "rpe":"RPE", "details":"課表細節"}), use_container_width=True, hide_index=True)
+            st.dataframe(df_plan.rename(columns={"date":"日期", "type":"課表類型", "distance":"預計距離(km)", "duration":"預計時間(分)", "rpe":"目標RPE", "details":"課表細節"}), use_container_width=True, hide_index=True)
             
-            # 清除預定課表的按鈕
             if st.button("🗑️ 清空舊的預定課表"):
                 conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
                 cursor.execute("DELETE FROM training_plan")
@@ -287,7 +283,6 @@ elif page == "💬 AI 科學分析師":
     active_prompt = prompt_text if prompt_text else ("🎤 [語音回報]" if audio_file else "")
     
     if active_prompt:
-        # 存入資料庫
         conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
         cursor.execute("INSERT INTO chat_messages (role, content, timestamp) VALUES (?, ?, ?)", ("user", active_prompt, str(datetime.now())))
         conn.commit(); conn.close()
@@ -295,19 +290,30 @@ elif page == "💬 AI 科學分析師":
         
         history = "\n".join([f"- {l['date']}: {l['type']}, {l['distance']}km, {l['duration']}min" for l in st.session_state.training_logs[-3:]])
         
-        # 🌟 賦予 AI 結構化輸出的嚴格指令
-        sys_inst = f"{agent_personality}\n\n【文獻知識】\n{knowledge_base_content}\n\n" \
-                   f"【生理與目標數據】\nCS: {st.session_state.cs:.2f} m/s, D': {st.session_state.d_prime:.0f}m\n" \
-                   f"可訓練時段: {','.join(st.session_state.available_slots)}\n" \
-                   f"目標賽事日: {st.session_state.get('race_date')}\n" \
-                   f"近期訓練:\n{history}\n\n" \
-                   f"【重要開發指令】：當你為選手「安排」或「修改」未來課表時，除了提供專業的文字解說，請務必在回覆的最下方，附帶一段 JSON 格式的數據。必須以 ```json 開頭並以 
-``` 結尾。\n" \
-                   f"JSON 格式範例：\n" \
-                   f"[\n" \
-                   f'  {{"date": "2026-06-15", "type": "輕鬆恢復跑 (Zone 1)", "distance": 6.0, "duration": 40, "rpe": 3, "details": "心率維持在130以下"}}\n' \
-                   f"]\n" \
-                   f"注意：type 必須嚴格等於這五種之一：[輕鬆恢復跑 (Zone 1), 有氧耐力跑 (Zone 2), 節奏/門檻跑 (Zone 3), 無氧間歇跑 (Zone 4), 其他/交叉訓練]。"
+        # 🌟 採用防呆的多行字串 (Multi-line string)
+        sys_inst = f"""{agent_personality}
+
+【文獻知識】
+{knowledge_base_content}
+
+【生理與目標數據】
+CS: {st.session_state.cs:.2f} m/s, D': {st.session_state.d_prime:.0f}m
+可訓練時段: {','.join(st.session_state.available_slots)}
+目標賽事日: {st.session_state.get('race_date')}
+近期訓練:
+{history}
+
+【重要開發指令】：
+當你為選手「安排」或「修改」未來課表時，除了提供專業的文字解說，請務必在回覆的最下方，附帶一段 JSON 格式的數據。
+必須以 ```json 開頭並以 
+``` 結尾。
+
+JSON 格式範例：
+[
+  {{"date": "2026-06-15", "type": "輕鬆恢復跑 (Zone 1)", "distance": 6.0, "duration": 40, "rpe": 3, "details": "心率維持在130以下"}}
+]
+
+注意：type 必須嚴格等於這五種之一：[輕鬆恢復跑 (Zone 1), 有氧耐力跑 (Zone 2), 節奏/門檻跑 (Zone 3), 無氧間歇跑 (Zone 4), 其他/交叉訓練]。"""
 
         if api_key:
             with st.spinner("AI 思考中並編寫課表..."):
