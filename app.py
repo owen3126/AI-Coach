@@ -334,28 +334,52 @@ elif page == "💬 AI 對話教練":
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
+    # 🌟 語音發送防呆：加入明確的「發送按鈕」
     c_text, c_audio = st.columns([5, 1])
-    with c_text: prompt_text = st.chat_input("Ex: 教練，幫我排今天到週日的課表...")
+    with c_text: 
+        prompt_text = st.chat_input("Ex: 教練，幫我排今天到週日的課表...")
     with c_audio:
-        with st.popover("🎤"): audio_file = st.audio_input("Audio")
+        with st.popover("🎤"): 
+            audio_file = st.audio_input("錄音")
+            send_audio = st.button("送出語音 🚀", use_container_width=True)
 
-    active_prompt = prompt_text if prompt_text else ("🎤 [語音回報]" if audio_file else "")
+    active_prompt = ""
+    is_audio_submission = False
+
+    if prompt_text:
+        active_prompt = prompt_text
+    elif audio_file and send_audio:
+        active_prompt = "🎤 [語音回報]"
+        is_audio_submission = True
     
     if active_prompt:
-        # 先把 User 訊息存進 DB 和 Session
+        b64_audio = None
+        mime_type = None
+        
+        # 🌟 將語音精準綁定，不再讓後續文字混入舊語音
+        if is_audio_submission:
+            audio_bytes = audio_file.read()
+            b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
+            mime_type = audio_file.type
+
         conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
         cursor.execute("INSERT INTO chat_messages (role, content, timestamp) VALUES (?, ?, ?)", ("user", active_prompt, str(datetime.now())))
         conn.commit(); conn.close()
-        st.session_state.messages.append({"role": "user", "content": active_prompt})
+        
+        msg_obj = {"role": "user", "content": active_prompt}
+        if b64_audio:
+            msg_obj["audio_b64"] = b64_audio
+            msg_obj["audio_mime"] = mime_type
+        st.session_state.messages.append(msg_obj)
         
         history = "\n".join([f"- {l['date']}: {l['type']}, {l['distance']}km, {l['duration']}min" for l in st.session_state.training_logs[-3:]])
+        
         now = datetime.today()
         current_date_str = now.strftime('%Y-%m-%d')
         weekday_map = {0:"一", 1:"二", 2:"三", 3:"四", 4:"五", 5:"六", 6:"日"}
         current_weekday = f"星期{weekday_map[now.weekday()]}"
         backticks = chr(96) * 3
         
-        # 🌟 指令更新：強制要求它在收到確認時閉嘴並只輸出 JSON
         prompt_parts = [
             f"{agent_personality}",
             "",
@@ -391,33 +415,23 @@ elif page == "💬 AI 對話教練":
         ]
         sys_inst = "\n".join(prompt_parts)
 
-        # 🌟 核心修復：建構包含「歷史對話記憶」的 API Contents 陣列
+        # 🌟 核心記憶引擎重構：完整傳遞有記憶的對話紀錄
         api_contents = []
-        for i, msg in enumerate(st.session_state.messages):
-            # API 要求的 role 只有 "user" 和 "model"
+        for msg in st.session_state.messages:
             api_role = "model" if msg["role"] == "assistant" else "user"
-            
-            # 如果是最後一則訊息且帶有語音檔，特殊處理
-            if i == len(st.session_state.messages) - 1 and audio_file:
-                api_contents.append({
-                    "role": api_role,
-                    "parts": [
-                        {"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}},
-                        {"text": "這是語音，請聽取並結合文字：" + msg["content"]}
-                    ]
-                })
+            parts = []
+            if "audio_b64" in msg:
+                parts.append({"inlineData": {"mimeType": msg["audio_mime"], "data": msg["audio_b64"]}})
+                parts.append({"text": "這是語音，請聽取並指導："})
             else:
-                api_contents.append({
-                    "role": api_role,
-                    "parts": [{"text": msg["content"]}]
-                })
+                parts.append({"text": msg["content"]})
+            api_contents.append({"role": api_role, "parts": parts})
 
         if api_key:
             with st.spinner("AI 正在深度思考與演算中..."):
                 try:
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={api_key}"
                     
-                    # 將包含完整記憶的 api_contents 傳給 Gemini
                     payload = {
                         "systemInstruction": {"parts": [{"text": sys_inst}]},
                         "contents": api_contents
