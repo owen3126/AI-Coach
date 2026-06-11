@@ -16,18 +16,18 @@ from datetime import datetime
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ---------------------------------------------------------
-# 🌟 Notion 極簡風與 LINE 氣泡對話框 (安全版 CSS 注入)
+# 🌟 Notion 極簡風與 LINE 氣泡對話框 (溫和安全版 CSS)
 # ---------------------------------------------------------
 st.set_page_config(page_title="LutzAI 運動科學平台", layout="wide", page_icon="📓")
 
 st.markdown("""
 <style>
 /* 匯入 Notion 常用字體 */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght=400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-/* 全域字體統一，讓 Streamlit 原生主題接管字體大小與顏色，避免元件重疊 */
-html, body, [class*="css"], [class*="st-"], p, span, div, h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', "Noto Sans TC", sans-serif !important;
+/* 溫和設定字體：絕對不覆寫 span 等可能包含圖示的標籤，讓 Streamlit 圖示正常顯示 */
+html, body, p, h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', "Noto Sans TC", sans-serif;
 }
 
 /* =========================================
@@ -126,7 +126,7 @@ if 'db_loaded' not in st.session_state:
     st.session_state.db_loaded = True
 
 # ---------------------------------------------------------
-# 🚀 文獻庫快取讀取 (Cache Data) - 防止掃描 PDF 造成卡頓
+# 🚀 文獻庫快取讀取 (Cache Data)
 # ---------------------------------------------------------
 try:
     with open("personality.md", "r", encoding="utf-8") as f: agent_personality = f.read()
@@ -259,11 +259,11 @@ elif page == "📈 訓練儀表板":
         st.markdown("#### 📊 Volume & Load Trends")
         c_chart1, c_chart2 = st.columns(2)
         
-        fig_dist = px.bar(df, x="date", y="distance", title="Distance (km)", color_discrete_sequence=["#2EA3F2"]) # Notion 藍
+        fig_dist = px.bar(df, x="date", y="distance", title="Distance (km)", color_discrete_sequence=["#2EA3F2"])
         fig_dist = apply_notion_theme(fig_dist)
         c_chart1.plotly_chart(fig_dist, use_container_width=True)
         
-        fig_load = px.area(df, x="date", y="srpe", title="Training Load (sRPE)", color_discrete_sequence=["#E03E3E"]) # 警示紅
+        fig_load = px.area(df, x="date", y="srpe", title="Training Load (sRPE)", color_discrete_sequence=["#E03E3E"])
         fig_load = apply_notion_theme(fig_load)
         c_chart2.plotly_chart(fig_load, use_container_width=True)
 
@@ -314,16 +314,16 @@ elif page == "🧬 生理參數庫":
         df_physio['date'] = pd.to_datetime(df_physio['date']).dt.strftime('%Y-%m-%d')
         fig_col1, fig_col2 = st.columns(2)
         with fig_col1:
-            fig_cs = px.line(df_physio, x='date', y='cs', markers=True, title="CS Trend", color_discrete_sequence=["#0F7B6C"]) # 科學綠
+            fig_cs = px.line(df_physio, x='date', y='cs', markers=True, title="CS Trend", color_discrete_sequence=["#0F7B6C"]) 
             fig_cs = apply_notion_theme(fig_cs)
             st.plotly_chart(fig_cs, use_container_width=True)
         with fig_col2:
-            fig_dp = px.line(df_physio, x='date', y='d_prime', markers=True, title="D' Trend", color_discrete_sequence=["#5A5A9A"]) # 質感紫
+            fig_dp = px.line(df_physio, x='date', y='d_prime', markers=True, title="D' Trend", color_discrete_sequence=["#5A5A9A"]) 
             fig_dp = apply_notion_theme(fig_dp)
             st.plotly_chart(fig_dp, use_container_width=True)
 
 # ---------------------------------------------------------
-# 頁面 4：💬 AI 氣泡對話教練 (🌟 鎖定 Gemini 2.5 Flash 穩定版)
+# 頁面 4：💬 AI 氣泡對話教練
 # ---------------------------------------------------------
 elif page == "💬 AI 對話教練":
     st.markdown("## 💬 Coaching Room")
@@ -349,14 +349,12 @@ elif page == "💬 AI 對話教練":
         
         history = "\n".join([f"- {l['date']}: {l['type']}, {l['distance']}km, {l['duration']}min" for l in st.session_state.training_logs[-3:]])
         
-        # 即時時間擷取
         now = datetime.today()
         current_date_str = now.strftime('%Y-%m-%d')
         weekday_map = {0:"一", 1:"二", 2:"三", 3:"四", 4:"五", 5:"六", 6:"日"}
         current_weekday = f"星期{weekday_map[now.weekday()]}"
         backticks = chr(96) * 3
         
-        # 🌟 陣列組合字串，徹底避開 f-string 大括號與換行衝突 Bug
         prompt_parts = [
             f"{agent_personality}",
             "",
@@ -397,8 +395,8 @@ elif page == "💬 AI 對話教練":
         if api_key:
             with st.spinner("AI 正在深度思考與演算中..."):
                 try:
-                    # ✅ 核心變更：全面對接絕對穩定版 Gemini 2.5 Flash 大腦
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+                    # 🌟 換回 Google 官方最新穩定版 API 1.5 Flash
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
                     parts = [{"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}}, {"text": "這是語音，請聽取並指導。"}] if audio_file else [{"text": active_prompt}]
                     payload = {"systemInstruction": {"parts": [{"text": sys_inst}]}, "contents": [{"role": "user", "parts": parts}]}
                     res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, verify=False).json()
@@ -406,7 +404,6 @@ elif page == "💬 AI 對話教練":
                     if "candidates" in res:
                         ai_reply = res["candidates"][0]["content"]["parts"][0]["text"]
                         
-                        # 使用動態生成字元擷取，安全防護再升級
                         regex_pattern = rf'{backticks}json\n(.*?)\n{backticks}'
                         json_match = re.search(regex_pattern, ai_reply, re.DOTALL)
                         
