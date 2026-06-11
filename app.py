@@ -342,19 +342,20 @@ elif page == "💬 AI 對話教練":
     active_prompt = prompt_text if prompt_text else ("🎤 [語音回報]" if audio_file else "")
     
     if active_prompt:
+        # 先把 User 訊息存進 DB 和 Session
         conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
         cursor.execute("INSERT INTO chat_messages (role, content, timestamp) VALUES (?, ?, ?)", ("user", active_prompt, str(datetime.now())))
         conn.commit(); conn.close()
         st.session_state.messages.append({"role": "user", "content": active_prompt})
         
         history = "\n".join([f"- {l['date']}: {l['type']}, {l['distance']}km, {l['duration']}min" for l in st.session_state.training_logs[-3:]])
-        
         now = datetime.today()
         current_date_str = now.strftime('%Y-%m-%d')
         weekday_map = {0:"一", 1:"二", 2:"三", 3:"四", 4:"五", 5:"六", 6:"日"}
         current_weekday = f"星期{weekday_map[now.weekday()]}"
         backticks = chr(96) * 3
         
+        # 🌟 指令更新：強制要求它在收到確認時閉嘴並只輸出 JSON
         prompt_parts = [
             f"{agent_personality}",
             "",
@@ -376,10 +377,9 @@ elif page == "💬 AI 對話教練":
             "- 針對「輕鬆恢復跑 (Zone 1)」等恢復性質訓練，請務必提供具體的「配速區間 (Pace Range)」。",
             "",
             "【重要操作指令：兩階段確認法】",
-            "1. 當你提出新的課表或調整草案時，【必須只使用一般文字或表格】，並詢問選手：「確認沒問題的話，我就幫你同步到系統裡囉？」",
-            "2. 【極度重要】：絕不能在第一次提案就輸出 JSON！",
-            "3. 只有當選手回答「好」、「OK」、「沒問題」、「確認」這類同意詞時，你才可以在回覆的最下方，輸出 JSON 結構數據。",
-            "4. 輸出的 JSON 中，只要日期相同的項目，系統會自動覆蓋(Update)掉舊的課表。",
+            "1. [提案階段] 當你初次提出新的課表或調整草案時，【必須只使用一般文字或表格】，不要輸出 JSON，並詢問選手：「確認沒問題的話，我就幫你同步到系統裡囉？」",
+            "2. [確認同步階段] 當選手回答「好」、「OK」、「沒問題」、「確認」等同意詞時，【請你直接給出 JSON 數據，絕對不要再重複一次課表內容，也不要再問一次問題！】",
+            "3. 輸出的 JSON 格式如下，只要日期相同，系統會自動覆蓋(Update)掉舊課表。",
             "",
             f"JSON 格式範例 (必須被 {backticks}json 包含)：",
             f"{backticks}json",
@@ -389,16 +389,40 @@ elif page == "💬 AI 對話教練":
             f"{backticks}",
             "注意：type 必須嚴格等於這五種之一：[輕鬆恢復跑 (Zone 1), 有氧耐力跑 (Zone 2), 節奏/門檻跑 (Zone 3), 無氧間歇跑 (Zone 4), 其他/交叉訓練]。"
         ]
-        
         sys_inst = "\n".join(prompt_parts)
+
+        # 🌟 核心修復：建構包含「歷史對話記憶」的 API Contents 陣列
+        api_contents = []
+        for i, msg in enumerate(st.session_state.messages):
+            # API 要求的 role 只有 "user" 和 "model"
+            api_role = "model" if msg["role"] == "assistant" else "user"
+            
+            # 如果是最後一則訊息且帶有語音檔，特殊處理
+            if i == len(st.session_state.messages) - 1 and audio_file:
+                api_contents.append({
+                    "role": api_role,
+                    "parts": [
+                        {"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}},
+                        {"text": "這是語音，請聽取並結合文字：" + msg["content"]}
+                    ]
+                })
+            else:
+                api_contents.append({
+                    "role": api_role,
+                    "parts": [{"text": msg["content"]}]
+                })
 
         if api_key:
             with st.spinner("AI 正在深度思考與演算中..."):
                 try:
-                    # 🌟 換上光速且穩定的 Gemini 2.5 Flash Lite 模型！
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={api_key}"
-                    parts = [{"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}}, {"text": "這是語音，請聽取並指導。"}] if audio_file else [{"text": active_prompt}]
-                    payload = {"systemInstruction": {"parts": [{"text": sys_inst}]}, "contents": [{"role": "user", "parts": parts}]}
+                    
+                    # 將包含完整記憶的 api_contents 傳給 Gemini
+                    payload = {
+                        "systemInstruction": {"parts": [{"text": sys_inst}]},
+                        "contents": api_contents
+                    }
+                    
                     res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, verify=False).json()
                     
                     if "candidates" in res:
