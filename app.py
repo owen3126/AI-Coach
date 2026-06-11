@@ -395,8 +395,8 @@ elif page == "💬 AI 對話教練":
         if api_key:
             with st.spinner("AI 正在深度思考與演算中..."):
                 try:
-                    # 🌟 採用官方表列的 gemini-2.5-flash 模型端點
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+                    # 🌟 換上光速且穩定的 Gemini 2.5 Flash Lite 模型！
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={api_key}"
                     parts = [{"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}}, {"text": "這是語音，請聽取並指導。"}] if audio_file else [{"text": active_prompt}]
                     payload = {"systemInstruction": {"parts": [{"text": sys_inst}]}, "contents": [{"role": "user", "parts": parts}]}
                     res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, verify=False).json()
