@@ -23,7 +23,7 @@ st.set_page_config(page_title="LutzAI 運動科學平台", layout="wide", page_i
 st.markdown("""
 <style>
 /* 匯入 Notion 常用字體 */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap)');
 
 /* 全域字體與強制亮色背景極簡化 */
 .stApp {
@@ -387,7 +387,9 @@ elif page == "💬 AI 對話教練":
         weekday_map = {0:"一", 1:"二", 2:"三", 3:"四", 4:"五", 5:"六", 6:"日"}
         current_weekday = f"星期{weekday_map[now.weekday()]}"
 
-        # 🌟 最安全寫法：使用陣列組合字串，徹底避開 f-string 換行與大括號衝突
+        # 🌟 終極防斷行：使用字元轉換 chr(96) 徹底取代實體反引號
+        backticks = chr(96) * 3
+        
         prompt_parts = [
             f"{agent_personality}",
             "",
@@ -414,16 +416,15 @@ elif page == "💬 AI 對話教練":
             "3. 只有當選手回答「好」、「OK」、「沒問題」、「確認」這類同意詞時，你才可以在回覆的最下方，輸出 JSON 結構數據。",
             "4. 輸出的 JSON 中，只要日期相同的項目，系統會自動覆蓋(Update)掉舊的課表。",
             "",
-            "JSON 格式範例 (必須被 ```json 包含)：",
-            "```json",
+            f"JSON 格式範例 (必須被 {backticks}json 包含)：",
+            f"{backticks}json",
             "[",
             '  {"date": "2026-06-15", "type": "輕鬆恢復跑 (Zone 1)", "distance": 6.0, "duration": 40, "rpe": 3, "details": "心率維持在130以下"}',
             "]",
-            "```",
+            f"{backticks}",
             "注意：type 必須嚴格等於這五種之一：[輕鬆恢復跑 (Zone 1), 有氧耐力跑 (Zone 2), 節奏/門檻跑 (Zone 3), 無氧間歇跑 (Zone 4), 其他/交叉訓練]。"
         ]
         
-        # 組合字串
         sys_inst = "\n".join(prompt_parts)
 
         if api_key:
@@ -437,8 +438,10 @@ elif page == "💬 AI 對話教練":
                     if "candidates" in res:
                         ai_reply = res["candidates"][0]["content"]["parts"][0]["text"]
                         
-                        json_match = re.search(r'
-```json\n(.*?)\n```', ai_reply, re.DOTALL)
+                        # 🌟 使用動態生成的反引號來擷取 JSON
+                        regex_pattern = rf'{backticks}json\n(.*?)\n{backticks}'
+                        json_match = re.search(regex_pattern, ai_reply, re.DOTALL)
+                        
                         if json_match:
                             try:
                                 plan_data = json.loads(json_match.group(1))
