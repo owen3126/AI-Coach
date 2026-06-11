@@ -16,7 +16,7 @@ from datetime import datetime
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ---------------------------------------------------------
-# 🌟 Notion 風格極簡化設定 (CSS 注入)
+# 🌟 Notion 極簡風與 LINE 氣泡對話框 (CSS 注入)
 # ---------------------------------------------------------
 st.set_page_config(page_title="LutzAI 運動科學平台", layout="wide", page_icon="📓")
 
@@ -25,45 +25,86 @@ st.markdown("""
 /* 匯入 Notion 常用字體 */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-/* 全域字體與背景極簡化 */
-html, body, [class*="css"]  {
-    font-family: 'Inter', "Noto Sans TC", sans-serif;
+/* 全域字體與強制亮色背景極簡化 */
+.stApp {
+    background-color: #ffffff !important;
+}
+html, body, [class*="css"], p, span, div, h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', "Noto Sans TC", sans-serif !important;
     color: #37352f !important;
 }
 
 /* 按鈕風格 Notion 化 */
 .stButton>button {
-    background-color: #ffffff;
-    color: #37352f;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    box-shadow: rgba(15, 15, 15, 0.05) 0px 1px 2px;
-    font-weight: 500;
+    background-color: #ffffff !important;
+    color: #37352f !important;
+    border: 1px solid #e0e0e0 !important;
+    border-radius: 6px !important;
+    box-shadow: rgba(15, 15, 15, 0.05) 0px 1px 2px !important;
+    font-weight: 500 !important;
     transition: background-color 0.2s ease;
 }
 .stButton>button:hover {
-    background-color: #f1f1ef;
-    border-color: #e0e0e0;
-    color: #37352f;
+    background-color: #f1f1ef !important;
+    border-color: #d0d0d0 !important;
 }
 
 /* 隱藏預設紅藍色的裝飾線條，改為極簡灰線 */
-hr {
-    border-top: 1px solid #ededed;
-}
+hr { border-top: 1px solid #ededed !important; }
 
 /* 資料表與展開框極簡化 */
 div[data-testid="stExpander"] {
-    border: 1px solid #ededed;
-    border-radius: 4px;
-    box-shadow: none;
+    border: 1px solid #ededed !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    background-color: #ffffff !important;
 }
-div[data-testid="stMetricValue"] {
-    color: #000000;
-    font-weight: 600;
+div[data-testid="stMetricValue"] { color: #37352f !important; font-weight: 600 !important; }
+div[data-testid="stMetricLabel"] { color: #787774 !important; }
+
+/* =========================================
+   💬 LINE 風格對話氣泡設計 (Notion 配色)
+   ========================================= */
+/* 隱藏預設頭像背景色 */
+[data-testid="stChatMessageAvatar"] {
+    background-color: transparent !important;
+}
+
+/* User 氣泡：灰底、無邊框、圓角 (仿 LINE 右側) */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="stChatMessageContent"] {
+    background-color: #f1f1ef !important;
+    border-radius: 18px 18px 2px 18px !important;
+    color: #37352f !important;
+    padding: 12px 18px !important;
+    border: none !important;
+}
+
+/* AI 教練氣泡：白底、灰邊框、微陰影 (仿 LINE 左側) */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) [data-testid="stChatMessageContent"] {
+    background-color: #ffffff !important;
+    border: 1px solid #e0e0e0 !important;
+    border-radius: 18px 18px 18px 2px !important;
+    color: #37352f !important;
+    padding: 12px 18px !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# 🌟 Plotly 圖表專屬 Notion 主題設定函數
+# ---------------------------------------------------------
+def apply_notion_theme(fig):
+    """將 Plotly 圖表的字體強制設為深色，背景透明，並加入淡色網格線"""
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#37352f", family="Inter"),
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#ededed', zerolinecolor='#ededed', tickfont=dict(color="#787774"))
+    fig.update_xaxes(showgrid=False, zerolinecolor='#ededed', tickfont=dict(color="#787774"))
+    return fig
 
 # ---------------------------------------------------------
 # 🌟 資料庫初始化與讀取邏輯
@@ -112,7 +153,6 @@ def load_data_from_db():
     st.session_state.messages = [{"role": m[0], "content": m[1]} for m in cursor.fetchall()]
     conn.close()
 
-# 🌟 自我修復機制
 init_db()
 if 'db_loaded' not in st.session_state:
     try:
@@ -150,7 +190,7 @@ with st.sidebar:
     if not st.session_state.profile_saved:
         page = "🏠 首頁 (Profile)"
     else:
-        page = st.radio("導覽", ["📈 訓練儀表板", "🧬 生理參數庫", "💬 AI 對話", "🏠 首頁 (Profile)"])
+        page = st.radio("導覽目錄", ["📈 訓練儀表板", "🧬 生理參數庫", "💬 AI 對話教練", "🏠 首頁 (Profile)"])
 
     if st.session_state.profile_saved:
         st.markdown("---")
@@ -196,7 +236,7 @@ if page == "🏠 首頁 (Profile)":
 # 頁面 2：📈 訓練儀表板
 # ---------------------------------------------------------
 elif page == "📈 訓練儀表板":
-    st.markdown("## 📈 Dashboard")
+    st.markdown("## 📈 訓練儀表板")
     
     if st.session_state.get('race_date'):
         days_to_race = (datetime.strptime(st.session_state.race_date, '%Y-%m-%d').date() - datetime.today().date()).days
@@ -223,7 +263,7 @@ elif page == "📈 訓練儀表板":
                 st.session_state.training_plan = []
                 st.rerun()
         else:
-            st.caption("No planned workouts yet. Chat with AI to generate a plan.")
+            st.caption("尚未建立課表。請至「AI 對話教練」頁面請教練安排。")
             
     with col_actual:
         st.markdown("#### 🏃‍♂️ 實際回報 (Actual)")
@@ -236,7 +276,7 @@ elif page == "📈 訓練儀表板":
             intervals = st.text_input("Details")
             rpe = st.slider("RPE", 0, 10, 6)
             
-            if st.form_submit_button("📝 Submit"):
+            if st.form_submit_button("📝 記錄儲存"):
                 srpe_val = duration_min * rpe
                 conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
                 cursor.execute("INSERT INTO training_logs (date, type, distance, duration, rpe, srpe, details) VALUES (?, ?, ?, ?, ?, ?, ?)", (str(train_date), train_type, distance_km, duration_min, rpe, srpe_val, intervals))
@@ -250,13 +290,13 @@ elif page == "📈 訓練儀表板":
         st.markdown("#### 📊 Volume & Load Trends")
         c_chart1, c_chart2 = st.columns(2)
         
-        # 繪製極簡風圖表
-        fig_dist = px.bar(df, x="date", y="distance", title="Distance (km)", color_discrete_sequence=["#5a5a5a"])
-        fig_dist.update_layout(plot_bgcolor="white", paper_bgcolor="white", margin=dict(l=0, r=0, t=30, b=0))
+        # 🌟 Notion 風格配色的 Plotly 圖表
+        fig_dist = px.bar(df, x="date", y="distance", title="Distance (km)", color_discrete_sequence=["#2EA3F2"]) # Notion 藍
+        fig_dist = apply_notion_theme(fig_dist)
         c_chart1.plotly_chart(fig_dist, use_container_width=True)
         
-        fig_load = px.area(df, x="date", y="srpe", title="Training Load (sRPE)", color_discrete_sequence=["#d3d3d3"])
-        fig_load.update_layout(plot_bgcolor="white", paper_bgcolor="white", margin=dict(l=0, r=0, t=30, b=0))
+        fig_load = px.area(df, x="date", y="srpe", title="Training Load (sRPE)", color_discrete_sequence=["#E03E3E"]) # 警示紅
+        fig_load = apply_notion_theme(fig_load)
         c_chart2.plotly_chart(fig_load, use_container_width=True)
 
 # ---------------------------------------------------------
@@ -306,18 +346,18 @@ elif page == "🧬 生理參數庫":
         df_physio['date'] = pd.to_datetime(df_physio['date']).dt.strftime('%Y-%m-%d')
         fig_col1, fig_col2 = st.columns(2)
         with fig_col1:
-            fig_cs = px.line(df_physio, x='date', y='cs', markers=True, title="CS Trend", color_discrete_sequence=["#37352f"])
-            fig_cs.update_layout(plot_bgcolor="white", paper_bgcolor="white")
+            fig_cs = px.line(df_physio, x='date', y='cs', markers=True, title="CS Trend", color_discrete_sequence=["#0F7B6C"]) # 科學綠
+            fig_cs = apply_notion_theme(fig_cs)
             st.plotly_chart(fig_cs, use_container_width=True)
         with fig_col2:
-            fig_dp = px.line(df_physio, x='date', y='d_prime', markers=True, title="D' Trend", color_discrete_sequence=["#9a9a9a"])
-            fig_dp.update_layout(plot_bgcolor="white", paper_bgcolor="white")
+            fig_dp = px.line(df_physio, x='date', y='d_prime', markers=True, title="D' Trend", color_discrete_sequence=["#5A5A9A"]) # 質感紫
+            fig_dp = apply_notion_theme(fig_dp)
             st.plotly_chart(fig_dp, use_container_width=True)
 
 # ---------------------------------------------------------
-# 頁面 4：💬 AI 科學分析師 (🌟 時間感知 & 兩階段確認更新邏輯)
+# 頁面 4：💬 AI 氣泡對話教練
 # ---------------------------------------------------------
-elif page == "💬 AI 對話":
+elif page == "💬 AI 對話教練":
     st.markdown("## 💬 Coaching Room")
     st.caption("討論課表調整。確認課表後，系統將自動同步並覆寫儀表板上的日程。")
     
@@ -327,7 +367,7 @@ elif page == "💬 AI 對話":
             with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
     c_text, c_audio = st.columns([5, 1])
-    with c_text: prompt_text = st.chat_input("Ex: 教練，這週六我臨時沒空，幫我把長距離移到週日...")
+    with c_text: prompt_text = st.chat_input("Ex: 教練，幫我排今天到週日的課表...")
     with c_audio:
         with st.popover("🎤"): audio_file = st.audio_input("Audio")
 
@@ -347,7 +387,6 @@ elif page == "💬 AI 對話":
         weekday_map = {0:"一", 1:"二", 2:"三", 3:"四", 4:"五", 5:"六", 6:"日"}
         current_weekday = f"星期{weekday_map[now.weekday()]}"
 
-        # 🌟 賦予 AI 「時間感」與「覆蓋/確認」邏輯的精確指令
         sys_inst = f"""{agent_personality}
 
 【現實時間認知】
@@ -366,58 +405,11 @@ CS: {st.session_state.cs:.2f} m/s, D': {st.session_state.d_prime:.0f}m
 【重要操作指令：兩階段確認法】
 1. 當你提出新的課表或調整草案時，【必須只使用一般文字或表格】，並詢問選手：「確認沒問題的話，我就幫你同步到系統裡囉？」
 2. 【極度重要】：絕不能在第一次提案就輸出 JSON！
-3. 只有當選手回答「好」、「OK」、「沒問題」、「確認」這類同意詞時，你才可以在回覆的最下方，輸出 JSON 結構數據（必須以 ```json 開頭並以 
-``` 結尾）。
+3. 只有當選手回答「好」、「OK」、「沒問題」、「確認」這類同意詞時，你才可以在回覆的最下方，輸出 JSON 結構數據。
 4. 輸出的 JSON 中，只要日期相同的項目，系統會自動覆蓋(Update)掉舊的課表。
 
-JSON 格式範例：
+JSON 格式範例 (必須被 ```json 包含)：
+```json
 [
   {{"date": "2026-06-15", "type": "輕鬆恢復跑 (Zone 1)", "distance": 6.0, "duration": 40, "rpe": 3, "details": "心率維持在130以下"}}
 ]
-
-注意：type 必須嚴格等於這五種之一：[輕鬆恢復跑 (Zone 1), 有氧耐力跑 (Zone 2), 節奏/門檻跑 (Zone 3), 無氧間歇跑 (Zone 4), 其他/交叉訓練]。"""
-
-        if api_key:
-            with st.spinner("AI is thinking..."):
-                try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
-                    parts = [{"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}}, {"text": "這是語音，請聽取並指導。"}] if audio_file else [{"text": active_prompt}]
-                    payload = {"systemInstruction": {"parts": [{"text": sys_inst}]}, "contents": [{"role": "user", "parts": parts}]}
-                    res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, verify=False).json()
-                    
-                    if "candidates" in res:
-                        ai_reply = res["candidates"][0]["content"]["parts"][0]["text"]
-                        
-                        # 🌟 當 AI 輸出 JSON 時進行資料庫覆寫 (Upsert)
-                        json_match = re.search(r'```json\n(.*?)\n```', ai_reply, re.DOTALL)
-                        if json_match:
-                            try:
-                                plan_data = json.loads(json_match.group(1))
-                                conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
-                                for day_plan in plan_data:
-                                    # 先刪除該日舊課表，再寫入新課表 (無縫覆寫)
-                                    cursor.execute("DELETE FROM training_plan WHERE date = ?", (day_plan['date'],))
-                                    cursor.execute("INSERT INTO training_plan (date, type, distance, duration, rpe, details) VALUES (?, ?, ?, ?, ?, ?)", 
-                                        (day_plan['date'], day_plan['type'], float(day_plan['distance']), int(day_plan['duration']), int(day_plan['rpe']), day_plan.get('details', '')))
-                                conn.commit()
-                                
-                                # 重新排序讀取
-                                cursor.execute("SELECT date, type, distance, duration, rpe, details FROM training_plan ORDER BY date ASC")
-                                st.session_state.training_plan = [{"date": p[0], "type": p[1], "distance": p[2], "duration": p[3], "rpe": p[4], "details": p[5]} for p in cursor.fetchall()]
-                                conn.close()
-                                
-                                ai_reply += "\n\n✅ **[系統提示：收到確認指令！最新課表已覆寫並同步至「訓練儀表板」。]**"
-                            except Exception as e:
-                                ai_reply += f"\n\n⚠️ **[系統提示：課表同步失敗]** {e}"
-                                
-                    else:
-                        ai_reply = f"❌ API Error: {res}"
-                except Exception as e: ai_reply = f"❌ Connection Failed: {e}"
-        else:
-            ai_reply = "💡 **[Demo Mode]**"
-
-        conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
-        cursor.execute("INSERT INTO chat_messages (role, content, timestamp) VALUES (?, ?, ?)", ("assistant", ai_reply, str(datetime.now())))
-        conn.commit(); conn.close()
-        st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-        st.rerun()
