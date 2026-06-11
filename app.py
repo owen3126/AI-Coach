@@ -16,19 +16,13 @@ from datetime import datetime
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ---------------------------------------------------------
-# 🌟 Notion 極簡風與 LINE 氣泡對話框 (溫和版 CSS 注入)
+# 🌟 UI 溫和修復與 LINE 氣泡對話框 (安全版 CSS)
 # ---------------------------------------------------------
 st.set_page_config(page_title="LutzAI 運動科學平台", layout="wide", page_icon="📓")
 
 st.markdown("""
 <style>
-/* 匯入 Notion 常用字體 */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
-/* 全域字體統一，移除強制顏色覆蓋，讓 Streamlit 原生主題接管字體大小與顏色 */
-html, body, [class*="css"], [class*="st-"], p, span, div, h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', "Noto Sans TC", sans-serif !important;
-}
+/* 移除強制全域覆蓋，讓 Streamlit 內建引擎接管字體大小，避免按鈕與圖示重疊 */
 
 /* =========================================
    💬 LINE 風格對話氣泡設計 (動態適應深淺色)
@@ -56,17 +50,15 @@ html, body, [class*="css"], [class*="st-"], p, span, div, h1, h2, h3, h4, h5, h6
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 🌟 Plotly 圖表專屬 Notion 主題設定函數
+# 🌟 Plotly 圖表專屬主題設定函數
 # ---------------------------------------------------------
 def apply_notion_theme(fig):
     """移除強制黑字，讓系統自動適應深淺色，保留極簡格線"""
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter"),
         margin=dict(l=20, r=20, t=40, b=20)
     )
-    # 使用半透明灰色作為格線，不論黑夜白天模式都不會刺眼
     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(135, 131, 120, 0.2)', zerolinecolor='rgba(135, 131, 120, 0.2)')
     fig.update_xaxes(showgrid=False, zerolinecolor='rgba(135, 131, 120, 0.2)')
     return fig
@@ -128,23 +120,30 @@ if 'db_loaded' not in st.session_state:
     st.session_state.db_loaded = True
 
 # ---------------------------------------------------------
-# 文獻庫讀取
+# 🚀 效能殺手修復：文獻庫快取讀取 (Cache Data)
 # ---------------------------------------------------------
 try:
     with open("personality.md", "r", encoding="utf-8") as f: agent_personality = f.read()
 except FileNotFoundError:
     agent_personality = "你是一位頂尖的運動科學跑步教練，名字叫科學分析師。"
 
-knowledge_base_content = ""
-if not os.path.exists("papers"): os.makedirs("papers")
-for file_name in [f for f in os.listdir("papers") if f.endswith(('.txt', '.md', '.pdf'))]:
-    file_path = os.path.join("papers", file_name)
-    try:
-        if file_name.lower().endswith('.pdf'):
-            with open(file_path, "rb") as f: knowledge_base_content += f"\n\n【PDF文獻：{file_name}】\n" + "".join([page.extract_text() for page in PyPDF2.PdfReader(f).pages if page.extract_text()])
-        else:
-            with open(file_path, "r", encoding="utf-8") as f: knowledge_base_content += f"\n\n【文獻：{file_name}】\n" + f.read()
-    except Exception: pass
+@st.cache_data
+def load_knowledge_base():
+    """快取文獻讀取，避免每次點擊按鈕都重新掃描 PDF 導致系統卡頓"""
+    kb_content = ""
+    if not os.path.exists("papers"): os.makedirs("papers")
+    for file_name in [f for f in os.listdir("papers") if f.endswith(('.txt', '.md', '.pdf'))]:
+        file_path = os.path.join("papers", file_name)
+        try:
+            if file_name.lower().endswith('.pdf'):
+                with open(file_path, "rb") as f: 
+                    kb_content += f"\n\n【PDF文獻：{file_name}】\n" + "".join([page.extract_text() for page in PyPDF2.PdfReader(f).pages if page.extract_text()])
+            else:
+                with open(file_path, "r", encoding="utf-8") as f: kb_content += f"\n\n【文獻：{file_name}】\n" + f.read()
+        except Exception: pass
+    return kb_content
+
+knowledge_base_content = load_knowledge_base()
 
 with st.sidebar:
     st.markdown("### ⚙️ Workspace")
@@ -255,7 +254,6 @@ elif page == "📈 訓練儀表板":
         st.markdown("#### 📊 Volume & Load Trends")
         c_chart1, c_chart2 = st.columns(2)
         
-        # 🌟 導入適應性主題，保留點綴色
         fig_dist = px.bar(df, x="date", y="distance", title="Distance (km)", color_discrete_sequence=["#2EA3F2"])
         fig_dist = apply_notion_theme(fig_dist)
         c_chart1.plotly_chart(fig_dist, use_container_width=True)
@@ -390,7 +388,7 @@ elif page == "💬 AI 對話教練":
         sys_inst = "\n".join(prompt_parts)
 
         if api_key:
-            with st.spinner("AI is thinking..."):
+            with st.spinner("AI 正在深度思考與演算中..."):
                 try:
                     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
                     parts = [{"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}}, {"text": "這是語音，請聽取並指導。"}] if audio_file else [{"text": active_prompt}]
