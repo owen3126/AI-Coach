@@ -64,9 +64,16 @@ def load_data_from_db():
     st.session_state.messages = [{"role": m[0], "content": m[1]} for m in cursor.fetchall()]
     conn.close()
 
+# 🌟 自我修復機制：偵測到舊版資料庫時自動砍掉重建
 init_db()
 if 'db_loaded' not in st.session_state:
-    load_data_from_db()
+    try:
+        load_data_from_db()
+    except sqlite3.OperationalError:
+        if os.path.exists(DB_FILE):
+            os.remove(DB_FILE)
+        init_db()
+        load_data_from_db()
     st.session_state.db_loaded = True
 
 # ---------------------------------------------------------
@@ -290,7 +297,6 @@ elif page == "💬 AI 科學分析師":
         
         history = "\n".join([f"- {l['date']}: {l['type']}, {l['distance']}km, {l['duration']}min" for l in st.session_state.training_logs[-3:]])
         
-        # 🌟 採用防呆的多行字串 (Multi-line string)
         sys_inst = f"""{agent_personality}
 
 【文獻知識】
@@ -305,8 +311,7 @@ CS: {st.session_state.cs:.2f} m/s, D': {st.session_state.d_prime:.0f}m
 
 【重要開發指令】：
 當你為選手「安排」或「修改」未來課表時，除了提供專業的文字解說，請務必在回覆的最下方，附帶一段 JSON 格式的數據。
-必須以 ```json 開頭並以 
-``` 結尾。
+必須以 ```json 開頭並以 ``` 結尾。
 
 JSON 格式範例：
 [
@@ -326,7 +331,6 @@ JSON 格式範例：
                     if "candidates" in res:
                         ai_reply = res["candidates"][0]["content"]["parts"][0]["text"]
                         
-                        # 🌟 攔截 JSON 並存入訓練計畫資料庫
                         json_match = re.search(r'```json\n(.*?)\n```', ai_reply, re.DOTALL)
                         if json_match:
                             try:
