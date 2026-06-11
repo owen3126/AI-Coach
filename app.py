@@ -16,77 +16,41 @@ from datetime import datetime
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ---------------------------------------------------------
-# 🌟 Notion 極簡風與 LINE 氣泡對話框 (CSS 注入)
+# 🌟 Notion 極簡風與 LINE 氣泡對話框 (溫和版 CSS 注入)
 # ---------------------------------------------------------
 st.set_page_config(page_title="LutzAI 運動科學平台", layout="wide", page_icon="📓")
 
 st.markdown("""
 <style>
 /* 匯入 Notion 常用字體 */
-@import url('[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap)');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-/* 全域字體與強制亮色背景極簡化 */
-.stApp {
-    background-color: #ffffff !important;
-}
-html, body, [class*="css"], p, span, div, h1, h2, h3, h4, h5, h6 {
+/* 全域字體統一，移除強制顏色覆蓋，讓 Streamlit 原生主題接管字體大小與顏色 */
+html, body, [class*="css"], [class*="st-"], p, span, div, h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', "Noto Sans TC", sans-serif !important;
-    color: #37352f !important;
 }
-
-/* 按鈕風格 Notion 化 */
-.stButton>button {
-    background-color: #ffffff !important;
-    color: #37352f !important;
-    border: 1px solid #e0e0e0 !important;
-    border-radius: 6px !important;
-    box-shadow: rgba(15, 15, 15, 0.05) 0px 1px 2px !important;
-    font-weight: 500 !important;
-    transition: background-color 0.2s ease;
-}
-.stButton>button:hover {
-    background-color: #f1f1ef !important;
-    border-color: #d0d0d0 !important;
-}
-
-/* 隱藏預設紅藍色的裝飾線條，改為極簡灰線 */
-hr { border-top: 1px solid #ededed !important; }
-
-/* 資料表與展開框極簡化 */
-div[data-testid="stExpander"] {
-    border: 1px solid #ededed !important;
-    border-radius: 6px !important;
-    box-shadow: none !important;
-    background-color: #ffffff !important;
-}
-div[data-testid="stMetricValue"] { color: #37352f !important; font-weight: 600 !important; }
-div[data-testid="stMetricLabel"] { color: #787774 !important; }
 
 /* =========================================
-   💬 LINE 風格對話氣泡設計 (Notion 配色)
+   💬 LINE 風格對話氣泡設計 (動態適應深淺色)
    ========================================= */
 /* 隱藏預設頭像背景色 */
 [data-testid="stChatMessageAvatar"] {
     background-color: transparent !important;
 }
 
-/* User 氣泡：灰底、無邊框、圓角 (仿 LINE 右側) */
+/* User 氣泡：仿 LINE 右側 (使用半透明灰底，深淺色皆適用) */
 [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) [data-testid="stChatMessageContent"] {
-    background-color: #f1f1ef !important;
+    background-color: rgba(135, 131, 120, 0.15) !important;
     border-radius: 18px 18px 2px 18px !important;
-    color: #37352f !important;
     padding: 12px 18px !important;
-    border: none !important;
 }
 
-/* AI 教練氣泡：白底、灰邊框、微陰影 (仿 LINE 左側) */
+/* AI 教練氣泡：仿 LINE 左側 (透明底加細邊框) */
 [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) [data-testid="stChatMessageContent"] {
-    background-color: #ffffff !important;
-    border: 1px solid #e0e0e0 !important;
+    background-color: transparent !important;
+    border: 1px solid rgba(135, 131, 120, 0.2) !important;
     border-radius: 18px 18px 18px 2px !important;
-    color: #37352f !important;
     padding: 12px 18px !important;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -95,15 +59,16 @@ div[data-testid="stMetricLabel"] { color: #787774 !important; }
 # 🌟 Plotly 圖表專屬 Notion 主題設定函數
 # ---------------------------------------------------------
 def apply_notion_theme(fig):
-    """將 Plotly 圖表的字體強制設為深色，背景透明，並加入淡色網格線"""
+    """移除強制黑字，讓系統自動適應深淺色，保留極簡格線"""
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#37352f", family="Inter"),
+        font=dict(family="Inter"),
         margin=dict(l=20, r=20, t=40, b=20)
     )
-    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#ededed', zerolinecolor='#ededed', tickfont=dict(color="#787774"))
-    fig.update_xaxes(showgrid=False, zerolinecolor='#ededed', tickfont=dict(color="#787774"))
+    # 使用半透明灰色作為格線，不論黑夜白天模式都不會刺眼
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(135, 131, 120, 0.2)', zerolinecolor='rgba(135, 131, 120, 0.2)')
+    fig.update_xaxes(showgrid=False, zerolinecolor='rgba(135, 131, 120, 0.2)')
     return fig
 
 # ---------------------------------------------------------
@@ -290,7 +255,7 @@ elif page == "📈 訓練儀表板":
         st.markdown("#### 📊 Volume & Load Trends")
         c_chart1, c_chart2 = st.columns(2)
         
-        # 🌟 Notion 風格配色的 Plotly 圖表
+        # 🌟 導入適應性主題，保留點綴色
         fig_dist = px.bar(df, x="date", y="distance", title="Distance (km)", color_discrete_sequence=["#2EA3F2"])
         fig_dist = apply_notion_theme(fig_dist)
         c_chart1.plotly_chart(fig_dist, use_container_width=True)
@@ -381,13 +346,10 @@ elif page == "💬 AI 對話教練":
         
         history = "\n".join([f"- {l['date']}: {l['type']}, {l['distance']}km, {l['duration']}min" for l in st.session_state.training_logs[-3:]])
         
-        # 即時時間擷取
         now = datetime.today()
         current_date_str = now.strftime('%Y-%m-%d')
         weekday_map = {0:"一", 1:"二", 2:"三", 3:"四", 4:"五", 5:"六", 6:"日"}
         current_weekday = f"星期{weekday_map[now.weekday()]}"
-
-        # 🌟 終極防斷行：使用字元轉換 chr(96) 徹底取代實體反引號
         backticks = chr(96) * 3
         
         prompt_parts = [
@@ -430,7 +392,7 @@ elif page == "💬 AI 對話教練":
         if api_key:
             with st.spinner("AI is thinking..."):
                 try:
-                    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=){api_key}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
                     parts = [{"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}}, {"text": "這是語音，請聽取並指導。"}] if audio_file else [{"text": active_prompt}]
                     payload = {"systemInstruction": {"parts": [{"text": sys_inst}]}, "contents": [{"role": "user", "parts": parts}]}
                     res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, verify=False).json()
@@ -438,7 +400,6 @@ elif page == "💬 AI 對話教練":
                     if "candidates" in res:
                         ai_reply = res["candidates"][0]["content"]["parts"][0]["text"]
                         
-                        # 🌟 使用動態生成的反引號來擷取 JSON
                         regex_pattern = rf'{backticks}json\n(.*?)\n{backticks}'
                         json_match = re.search(regex_pattern, ai_reply, re.DOTALL)
                         
