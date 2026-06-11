@@ -23,7 +23,7 @@ st.set_page_config(page_title="LutzAI 運動科學平台", layout="wide", page_i
 st.markdown("""
 <style>
 /* 匯入 Notion 常用字體 */
-@import url('[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap)');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
 /* 全域字體與強制亮色背景極簡化 */
 .stApp {
@@ -291,11 +291,11 @@ elif page == "📈 訓練儀表板":
         c_chart1, c_chart2 = st.columns(2)
         
         # 🌟 Notion 風格配色的 Plotly 圖表
-        fig_dist = px.bar(df, x="date", y="distance", title="Distance (km)", color_discrete_sequence=["#2EA3F2"]) # Notion 藍
+        fig_dist = px.bar(df, x="date", y="distance", title="Distance (km)", color_discrete_sequence=["#2EA3F2"])
         fig_dist = apply_notion_theme(fig_dist)
         c_chart1.plotly_chart(fig_dist, use_container_width=True)
         
-        fig_load = px.area(df, x="date", y="srpe", title="Training Load (sRPE)", color_discrete_sequence=["#E03E3E"]) # 警示紅
+        fig_load = px.area(df, x="date", y="srpe", title="Training Load (sRPE)", color_discrete_sequence=["#E03E3E"])
         fig_load = apply_notion_theme(fig_load)
         c_chart2.plotly_chart(fig_load, use_container_width=True)
 
@@ -346,11 +346,11 @@ elif page == "🧬 生理參數庫":
         df_physio['date'] = pd.to_datetime(df_physio['date']).dt.strftime('%Y-%m-%d')
         fig_col1, fig_col2 = st.columns(2)
         with fig_col1:
-            fig_cs = px.line(df_physio, x='date', y='cs', markers=True, title="CS Trend", color_discrete_sequence=["#0F7B6C"]) # 科學綠
+            fig_cs = px.line(df_physio, x='date', y='cs', markers=True, title="CS Trend", color_discrete_sequence=["#0F7B6C"]) 
             fig_cs = apply_notion_theme(fig_cs)
             st.plotly_chart(fig_cs, use_container_width=True)
         with fig_col2:
-            fig_dp = px.line(df_physio, x='date', y='d_prime', markers=True, title="D' Trend", color_discrete_sequence=["#5A5A9A"]) # 質感紫
+            fig_dp = px.line(df_physio, x='date', y='d_prime', markers=True, title="D' Trend", color_discrete_sequence=["#5A5A9A"]) 
             fig_dp = apply_notion_theme(fig_dp)
             st.plotly_chart(fig_dp, use_container_width=True)
 
@@ -381,47 +381,55 @@ elif page == "💬 AI 對話教練":
         
         history = "\n".join([f"- {l['date']}: {l['type']}, {l['distance']}km, {l['duration']}min" for l in st.session_state.training_logs[-3:]])
         
-        # 🌟 即時時間擷取
+        # 即時時間擷取
         now = datetime.today()
         current_date_str = now.strftime('%Y-%m-%d')
         weekday_map = {0:"一", 1:"二", 2:"三", 3:"四", 4:"五", 5:"六", 6:"日"}
         current_weekday = f"星期{weekday_map[now.weekday()]}"
 
-        # 🌟 安全的單行字串拼接 (絕對不會發生引號斷行錯誤)
-        sys_inst = (
-            f"{agent_personality}\n\n"
-            f"【現實時間認知】\n"
-            f"今天是真實世界的：{current_date_str} ({current_weekday})\n"
-            f"- 當選手要求「安排本週課表」時，請務必從「{current_date_str} 開始，排到本週日為止」。\n"
-            f"- 當選手在週日要求「安排下週課表」時，再給完整的下週一到下週日課表。\n"
-            f"- 若選手提出回饋修改課表，請從「{current_date_str} 起」向後調整未來的課表。\n\n"
-            f"【生理與目標數據】\n"
-            f"CS: {st.session_state.cs:.2f} m/s, D': {st.session_state.d_prime:.0f}m\n"
-            f"可訓練時段: {','.join(st.session_state.available_slots)}\n"
-            f"目標賽事日: {st.session_state.get('race_date')}\n"
-            f"近期訓練歷史:\n{history}\n\n"
-            f"【專屬偏好設定】\n"
-            f"- 課表呈現請勿使用粗體字。\n"
-            f"- 針對「輕鬆恢復跑 (Zone 1)」等恢復性質訓練，請務必提供具體的「配速區間 (Pace Range)」。\n\n"
-            f"【重要操作指令：兩階段確認法】\n"
-            f"1. 當你提出新的課表或調整草案時，【必須只使用一般文字或表格】，並詢問選手：「確認沒問題的話，我就幫你同步到系統裡囉？」\n"
-            f"2. 【極度重要】：絕不能在第一次提案就輸出 JSON！\n"
-            f"3. 只有當選手回答「好」、「OK」、「沒問題」、「確認」這類同意詞時，你才可以在回覆的最下方，輸出 JSON 結構數據。\n"
-            f"4. 輸出的 JSON 中，只要日期相同的項目，系統會自動覆蓋(Update)掉舊的課表。\n\n"
-            f"JSON 格式範例 (必須被 ```json 包含)：\n"
-            f"```json\n"
-            f"[\n"
-            f"  {{\"date\": \"2026-06-15\", \"type\": \"輕鬆恢復跑 (Zone 1)\", \"distance\": 6.0, \"duration\": 40, \"rpe\": 3, \"details\": \"心率維持在130以下\"}}\n"
-            f"]\n"
-            f"
-```\n"
-            f"注意：type 必須嚴格等於這五種之一：[輕鬆恢復跑 (Zone 1), 有氧耐力跑 (Zone 2), 節奏/門檻跑 (Zone 3), 無氧間歇跑 (Zone 4), 其他/交叉訓練]。"
-        )
+        # 🌟 最安全寫法：使用陣列組合字串，徹底避開 f-string 換行與大括號衝突
+        prompt_parts = [
+            f"{agent_personality}",
+            "",
+            "【現實時間認知】",
+            f"今天是真實世界的：{current_date_str} ({current_weekday})",
+            f"- 當選手要求「安排本週課表」時，請務必從「{current_date_str} 開始，排到本週日為止」。",
+            "- 當選手在週日要求「安排下週課表」時，再給完整的下週一到下週日課表。",
+            f"- 若選手提出回饋修改課表，請從「{current_date_str} 起」向後調整未來的課表。",
+            "",
+            "【生理與目標數據】",
+            f"CS: {st.session_state.cs:.2f} m/s, D': {st.session_state.d_prime:.0f}m",
+            f"可訓練時段: {','.join(st.session_state.available_slots)}",
+            f"目標賽事日: {st.session_state.get('race_date')}",
+            "近期訓練歷史:",
+            f"{history}",
+            "",
+            "【專屬偏好設定】",
+            "- 課表呈現請勿使用粗體字。",
+            "- 針對「輕鬆恢復跑 (Zone 1)」等恢復性質訓練，請務必提供具體的「配速區間 (Pace Range)」。",
+            "",
+            "【重要操作指令：兩階段確認法】",
+            "1. 當你提出新的課表或調整草案時，【必須只使用一般文字或表格】，並詢問選手：「確認沒問題的話，我就幫你同步到系統裡囉？」",
+            "2. 【極度重要】：絕不能在第一次提案就輸出 JSON！",
+            "3. 只有當選手回答「好」、「OK」、「沒問題」、「確認」這類同意詞時，你才可以在回覆的最下方，輸出 JSON 結構數據。",
+            "4. 輸出的 JSON 中，只要日期相同的項目，系統會自動覆蓋(Update)掉舊的課表。",
+            "",
+            "JSON 格式範例 (必須被 ```json 包含)：",
+            "```json",
+            "[",
+            '  {"date": "2026-06-15", "type": "輕鬆恢復跑 (Zone 1)", "distance": 6.0, "duration": 40, "rpe": 3, "details": "心率維持在130以下"}',
+            "]",
+            "```",
+            "注意：type 必須嚴格等於這五種之一：[輕鬆恢復跑 (Zone 1), 有氧耐力跑 (Zone 2), 節奏/門檻跑 (Zone 3), 無氧間歇跑 (Zone 4), 其他/交叉訓練]。"
+        ]
+        
+        # 組合字串
+        sys_inst = "\n".join(prompt_parts)
 
         if api_key:
             with st.spinner("AI is thinking..."):
                 try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
+                    url = f"[https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=){api_key}"
                     parts = [{"inlineData": {"mimeType": audio_file.type, "data": base64.b64encode(audio_file.read()).decode("utf-8")}}, {"text": "這是語音，請聽取並指導。"}] if audio_file else [{"text": active_prompt}]
                     payload = {"systemInstruction": {"parts": [{"text": sys_inst}]}, "contents": [{"role": "user", "parts": parts}]}
                     res = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, verify=False).json()
@@ -429,7 +437,8 @@ elif page == "💬 AI 對話教練":
                     if "candidates" in res:
                         ai_reply = res["candidates"][0]["content"]["parts"][0]["text"]
                         
-                        json_match = re.search(r'```json\n(.*?)\n```', ai_reply, re.DOTALL)
+                        json_match = re.search(r'
+```json\n(.*?)\n```', ai_reply, re.DOTALL)
                         if json_match:
                             try:
                                 plan_data = json.loads(json_match.group(1))
